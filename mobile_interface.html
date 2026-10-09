@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071018">
+  <title>Jarvis</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071018;
+      --line: rgba(90, 214, 240, 0.45);
+      --text: #e7f7ff;
+      --muted: #8eb4c4;
+      --cyan: #49e6ff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 50% 18%, rgba(28, 120, 150, 0.28), transparent 34%),
+        var(--bg);
+    }
+    .shell {
+      width: min(440px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 28px 20px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    header { display: flex; justify-content: space-between; align-items: end; }
+    .mark { margin: 0; letter-spacing: 0.32em; font-size: 13px; }
+    .sub { margin: 6px 0 0; color: var(--muted); font-size: 12px; letter-spacing: 0.16em; }
+    .badge {
+      border: 1px solid var(--line);
+      color: var(--cyan);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+    }
+    .core {
+      width: 168px;
+      height: 168px;
+      margin: 8px auto 0;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 0 40px rgba(73, 230, 255, 0.18);
+      animation: breathe 3.6s ease-in-out infinite;
+    }
+    .core.live { animation-duration: 1.1s; border-color: #d8fbff; }
+    .core span {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ffffff 0%, #7ae7ff 42%, #0d6d8c 78%);
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(0.96); }
+      50% { transform: scale(1); }
+    }
+    label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    input[type="password"], input[type="text"] {
+      width: 100%;
+      border: 1px solid #1c6f8a;
+      background: #0c1c26;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 14px 12px;
+      font-size: 16px;
+    }
+    .row { display: flex; gap: 10px; align-items: center; }
+    .allow {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    button {
+      border: 0;
+      border-radius: 14px;
+      background: #123f52;
+      color: var(--text);
+      padding: 14px 16px;
+      font-size: 15px;
+    }
+    #mic {
+      width: 100%;
+      background: #0e7494;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+    #mic.live { background: #d8fbff; color: #062028; }
+    .log {
+      flex: 1;
+      min-height: 180px;
+      border: 1px solid #14384a;
+      border-radius: 16px;
+      padding: 14px;
+      overflow: auto;
+      background: rgba(5, 12, 18, 0.72);
+    }
+    .you, .jarvis { margin: 0 0 12px; line-height: 1.45; }
+    .you { color: #b7e7f5; }
+    .jarvis { color: #ffffff; }
+    .hint { color: var(--muted); font-size: 12px; margin: 0; }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="mark">J.A.R.V.I.S.</p>
+        <p class="sub">MOBILE LINK</p>
+      </div>
+      <div class="badge" id="status">IDLE</div>
+    </header>
+    <div class="core" id="core" aria-hidden="true"><span></span></div>
+    <div>
+      <label for="token">Access token</label>
+      <input id="token" type="password" autocomplete="off" placeholder="JARVIS_SECRET_TOKEN">
+    </div>
+    <label class="allow"><input id="allow" type="checkbox"> Allow file, deploy, and window actions</label>
+    <button id="mic" type="button">HOLD TO SPEAK</button>
+    <div class="row">
+      <input id="command" type="text" placeholder="Or type a command" enterkeyhint="send">
+      <button id="send" type="button">Send</button>
+    </div>
+    <section class="log" id="log" aria-live="polite"></section>
+    <p class="hint">The token stays in this browser session. Voice requests without it are refused.</p>
+  </main>
+  <script>
+    const tokenInput = document.querySelector("#token");
+    const commandInput = document.querySelector("#command");
+    const status = document.querySelector("#status");
+    const core = document.querySelector("#core");
+    const log = document.querySelector("#log");
+    const mic = document.querySelector("#mic");
+    const allow = document.querySelector("#allow");
+    const SpeechApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+
+    tokenInput.value = sessionStorage.getItem("jarvisToken") || "";
+    tokenInput.addEventListener("change", () => {
+      sessionStorage.setItem("jarvisToken", tokenInput.value.trim());
+    });
+
+    function setStatus(text, live) {
+      status.textContent = text;
+      core.classList.toggle("live", Boolean(live));
+      mic.classList.toggle("live", Boolean(live));
+    }
+
+    function addLine(kind, text) {
+      const line = document.createElement("p");
+      line.className = kind;
+      line.textContent = (kind === "you" ? "You: " : "Jarvis: ") + text;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function sendCommand(text) {
+      const command = text.trim();
+      const token = tokenInput.value.trim();
+      sessionStorage.setItem("jarvisToken", token);
+      if (!command) return;
+      addLine("you", command);
+      setStatus("THINKING...", false);
+      const response = await fetch("/api/voice", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({ text: command, confirm: allow.checked })
+      });
+      if (response.status === 401) {
+        setStatus("UNAUTHORIZED", false);
+        addLine("jarvis", "Unauthorized");
+        return;
+      }
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatus("IDLE", false);
+        addLine("jarvis", body.detail || "The voice request failed.");
+        return;
+      }
+      setStatus("IDLE", false);
+      addLine("jarvis", body.reply || "Done, Sir.");
+    }
+
+    document.querySelector("#send").addEventListener("click", () => {
+      sendCommand(commandInput.value);
+      commandInput.value = "";
+    });
+    commandInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        sendCommand(commandInput.value);
+        commandInput.value = "";
+      }
+    });
+
+    function startListening() {
+      if (!SpeechApi) {
+        addLine("jarvis", "This browser has no speech recognition. Type the command instead.");
+        return;
+      }
+      recognition = new SpeechApi();
+      recognition.lang = "en-IN";
+      recognition.interimResults = false;
+      recognition.onstart = () => setStatus("LISTENING...", true);
+      recognition.onresult = (event) => {
+        const said = event.results[0][0].transcript;
+        sendCommand(said);
+      };
+      recognition.onerror = () => setStatus("IDLE", false);
+      recognition.onend = () => setStatus(status.textContent === "LISTENING..." ? "IDLE" : status.textContent, false);
+      recognition.start();
+    }
+
+    function stopListening() {
+      if (recognition) recognition.stop();
+    }
+
+    mic.addEventListener("mousedown", startListening);
+    mic.addEventListener("mouseup", stopListening);
+    mic.addEventListener("mouseleave", stopListening);
+    mic.addEventListener("touchstart", (event) => {
+      event.preventDefault();
+      startListening();
+    }, { passive: false });
+    mic.addEventListener("touchend", (event) => {
+      event.preventDefault();
+      stopListening();
+    });
+  </script>
+</body>
+</html>
