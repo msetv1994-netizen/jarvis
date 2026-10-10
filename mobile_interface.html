@@ -145,6 +145,7 @@
     const mic = document.querySelector("#mic");
     const allow = document.querySelector("#allow");
     const SpeechApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const voiceUrl = "https://jarvis-wnnw.onrender.com/api/voice";
     let recognition = null;
 
     tokenInput.value = sessionStorage.getItem("jarvisToken") || "";
@@ -171,13 +172,19 @@
       const token = tokenInput.value.trim();
       sessionStorage.setItem("jarvisToken", token);
       if (!command) return;
+      if (!token) {
+        setStatus("UNAUTHORIZED", false);
+        addLine("jarvis", "Enter the JARVIS_SECRET_TOKEN from Render.");
+        return;
+      }
       addLine("you", command);
       setStatus("THINKING...", false);
-      const response = await fetch("/api/voice", {
+      const response = await fetch(voiceUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer " + token
+          "Authorization": "Bearer " + token,
+          "X-Jarvis-Token": token
         },
         body: JSON.stringify({ text: command, confirm: allow.checked })
       });
