@@ -1599,7 +1599,7 @@ def _build_api():
     api = FastAPI(title="Jarvis")
     api.add_middleware(
         CORSMiddleware,
-        allow_origins=["https://msetv1994-netizen.github.io", "https://jarvis-wnnw.onrender.com"],
+        allow_origins=["https://msetv1994-netizen.github.io", "https://jarvis-vams.onrender.com"],
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Jarvis-Token"],
     )
