@@ -1581,9 +1581,10 @@ def _transcribe_audio(data: bytes, suffix: str) -> str:
 def _build_api():
     """Token-locked FastAPI service for the phone."""
     from fastapi import Depends, FastAPI, HTTPException, Request
+    from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse
 
-    interface = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mobile_interface.html")
+    interface = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
 
     def require_owner(request: Request) -> None:
         expected = os.environ.get("JARVIS_SECRET_TOKEN", "")
@@ -1596,6 +1597,12 @@ def _build_api():
             raise HTTPException(status_code=401, detail="Unauthorized")
 
     api = FastAPI(title="Jarvis")
+    api.add_middleware(
+        CORSMiddleware,
+        allow_origins=["https://msetv1994-netizen.github.io", "https://jarvis-wnnw.onrender.com"],
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Jarvis-Token"],
+    )
 
     @api.get("/")
     @api.get("/mobile")
